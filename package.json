@@ -1,6 +1,10 @@
 {
   "name": "aws-batch-simulator",
   "description": "A client-side tool to simulate the behavior of an AWS Batch application",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/otaviomacedo/aws-batch-simulator.git"
+  },
   "scripts": {
     "build": "npx projen build",
     "bump": "npx projen bump",

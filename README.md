@@ -1,4 +1,4 @@
-# CDK Batch Simulator
+# AWS Batch Simulator
 
 Suppose you need to run heavy batch workloads, such as training ML models,
 running image processing algorithms on large files etc. Users of your system can

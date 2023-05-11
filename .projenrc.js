@@ -12,5 +12,6 @@ const project = new typescript.TypeScriptProject({
   gitignore: ['.idea'],
   peerDeps: ['aws-cdk-lib'],
   releaseToNpm: true,
+  repository: 'https://github.com/otaviomacedo/aws-batch-simulator.git',
 });
 project.synth();
