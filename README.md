@@ -79,6 +79,8 @@ const report = simulator.simulate([{
   meanServiceTime: 15, // minutes
   arrivalRate: 0.9, // jobs/min = 54 jobs/h
 }]);
+
+// Use report.toHtml() to get a formatted version of the report with charts etc.
 ```
 
 Notice that, in this example, we get a job almost every minute, but it takes 15
@@ -122,7 +124,7 @@ const report = simulator.simulate([{
 As the simulation report shows, both departments have to wait about the same
 amount of time (approximately 21.5 min), on average, for their jobs to finish.
 This is because the default scheduling policy for a job queue is first-in,
-first-out (FIFO), so every job, regardless of their share identifier, has to 
+first-out (FIFO), so every job, regardless of their share identifier, has to
 wait for the same number of jobs in the queue, on average.
 
 ![](./docs/img/fifo-finance-distribution.png)
@@ -152,13 +154,11 @@ const queue: batch.JobQueue = new batch.JobQueue(this, 'myJobQueue', {
 });
 ```
 
-The resulting distributions are about 21 minutes for Finance and 17 minutes
-for Research:
+The resulting distributions are about 21 minutes for Finance and 17 minutes for
+Research:
 
 ![](./docs/img/fairshare-finance-distribution.png)
 ![](./docs/img/fairshare-research-distribution.png)
-
-[//]: # (TODO: compute reservation)
 
 ## Retry strategies
 
@@ -202,10 +202,50 @@ minutes, in this case:
 > simulation, generated jobs that are considered to fail will be "retried"
 > if their job definition has at least one retry strategy with action `RETRY`.
 
-[//]: # (TODO: "Future work" section)
+## Using other distributions
+
+Although the Markov process is the most commonly used to model queueing systems,
+your particular use case may be better modeled by some process. For example, in
+many applications, batch jobs are triggered periodically by some scheduler
+like [cron]. The service time may still be exponentially distributed, but the
+inter-arrival time is now deterministic. To model these situations, use the
+lower-level API provided by the _general_ process:
+
+```ts
+const simulator = BatchSimulator.general(stack);
+```
+
+and specify the probability distributions directly:
+
+```ts
+const report = simulator.simulate([{
+  jobDefinition: smallJob,
+  interArrivalTimeDistribution: Distribution.deterministic(5),
+  serviceTimeDistribution: Distribution.exponential(1 / 30),
+}]);
+```
+
+If you need to use some more probability distribution that is not available in
+the `Distribution` class, you can bring your own, by implementing the
+`IDistribution` interface.
+
+## Unsupported features (yet)
+
+Some of the AWS Batch features are not being simulated by this library:
+
+- **Queue priority**: If you have multiple queues sharing a compute environment,
+  they will be treated with the same priority. The order in which jobs will be
+  picked for execution depends only on their position in, and the scheduling
+  policies of, their respective queues.
+- **Spot instances**: The `spot: true` configuration in compute environments is
+  completely ignored.
+- **Share decay**: Even though compute reservation is taken into account for
+  simulation, the share decay, if defined, is also ignored.
 
 [AWS Batch]: https://aws.amazon.com/batch/
 
 [CDK]: https://aws.amazon.com/cdk/
 
 [mmc]: https://www.wikiwand.com/en/M/M/c_queue
+
+[cron]: https://en.wikipedia.org/wiki/Cron
