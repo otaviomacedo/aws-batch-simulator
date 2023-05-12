@@ -884,10 +884,16 @@ export interface QueueMetrics {
   readonly size: number;
 }
 
+export interface QueueHistory {
+  id: string;
+  metrics: QueueMetrics[];
+}
+
 export interface JobQueueProps {
   readonly computeEnvironments: IComputeEnvironment[];
   readonly schedulingPolicy: ISchedulingPolicy;
   readonly eventLoop: EventLoop;
+  readonly queueId: string;
 }
 
 export class JobQueue implements IComputeEnvironmentListener {
@@ -898,12 +904,14 @@ export class JobQueue implements IComputeEnvironmentListener {
 
   public readonly executionMetrics: ExecutionMetrics[] = [];
   public readonly queueMetrics: QueueMetrics[] = [];
+  public readonly queueId: string;
 
   constructor(props: JobQueueProps) {
     this.computeEnvironments = props.computeEnvironments;
     props.computeEnvironments.forEach(env => env.addListener(this));
     this.schedulingPolicy = props.schedulingPolicy;
     this.eventLoop = props.eventLoop;
+    this.queueId = props.queueId;
   }
 
   push(job: Job): void {

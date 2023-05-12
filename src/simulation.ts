@@ -14,10 +14,10 @@ import {
   IComputeEnvironment,
   ISchedulingPolicy,
   JobQueue,
-  QueueMetrics,
+  QueueHistory,
 } from './scheduling';
 
-const NUMBER_OF_JOBS: number = 20000;
+const DEFAULT_NUMBER_OF_JOBS: number = 10000;
 
 export interface StochasticModel {
   readonly interArrivalTimeDistribution: IDistribution;
@@ -120,8 +120,8 @@ export class JobGenerator {
 
   private generateRandomJobs(): Job[] {
     let time = 0;
-    const jobs: Job[] = new Array<Job>(NUMBER_OF_JOBS);
-    for (let i = 0; i < NUMBER_OF_JOBS; i++) {
+    const jobs: Job[] = new Array<Job>(DEFAULT_NUMBER_OF_JOBS);
+    for (let i = 0; i < DEFAULT_NUMBER_OF_JOBS; i++) {
       const c = Math.floor(Math.random() * this.models.length);
       const jobDefinition: IJobDefinition = this.models[c].jobDefinition;
       const rng: RandomNumberGenerator = this.rngs[c];
@@ -154,8 +154,10 @@ export class JobGenerator {
  * Generates a random number from a geometric distribution
  */
 function geometric(successProbability: number): number {
+  if (successProbability === 1) return 1;
   return Math.ceil(Math.log(Math.random()) / Math.log(1 - successProbability));
 }
+
 function validateConfigs(configs: StochasticModel[]) {
   // TODO test this
   if (configs.some(c => c.weightFactorProbabilities != null
@@ -200,7 +202,7 @@ interface SimulationResult {
   readonly timesByJobDefinition: Map<string, Histogram>;
   readonly meanTimeByShareIdentifier: Map<string, number>;
   readonly meanTimeByJobDefinition: Map<string, number>;
-  readonly queueSize: QueueMetrics[];
+  readonly queueHistories: QueueHistory[];
 }
 
 export interface IBatchSimulator<M> {
@@ -291,7 +293,10 @@ export class Simulator {
     eventLoop.start();
 
     const metrics: ExecutionMetrics[] = backlogs.flatMap(b => b.queue.executionMetrics);
-    const queueSizeMetric: QueueMetrics[] = backlogs.flatMap(b => b.queue.queueMetrics);
+    const queueHistories: QueueHistory[] = backlogs.map(b => ({
+      id: b.queue.queueId,
+      metrics: b.queue.queueMetrics,
+    }));
     const map: Map<Job, number> = new Map(metrics.map(m => [m.job, m.time]));
 
     const timesByShareIdentifier = this.aggregateByShareIdentifier(map);
@@ -313,7 +318,7 @@ export class Simulator {
       timesByJobDefinition,
       meanTimeByShareIdentifier,
       meanTimeByJobDefinition,
-      queueSize: queueSizeMetric,
+      queueHistories,
     });
   }
 
@@ -364,6 +369,7 @@ class ConstructConverter {
       schedulingPolicy: this.convertSchedulingPolicy(queue.schedulingPolicy),
       computeEnvironments: queue.computeEnvironments.map(e => this.convertComputeEnvironment(e.computeEnvironment)),
       eventLoop: this.eventLoop,
+      queueId: queue.node.path,
     });
   }
 
@@ -433,6 +439,14 @@ export class SimulationReport {
       return result;
     };
 
+    const generateQueueDivs = () => {
+      const result: string[] = [];
+      this.simulationResult.queueHistories.forEach(history => {
+        result.push(`<div id="q-${history.id}"></div>`);
+      });
+      return result;
+    };
+
     const generateCalls = () => {
       const calls: string[] = [];
       const header: [any, any][] = [['Time', '']];
@@ -442,20 +456,20 @@ export class SimulationReport {
       this.simulationResult.timesByJobDefinition.forEach((histogram, jobDefinition) => {
         calls.push(`drawChart('jd-${jobDefinition}', '${jobDefinition} (μ = ${this.simulationResult.meanTimeByJobDefinition.get(jobDefinition)})', ${JSON.stringify(header.concat(histogram.entries()))});`);
       });
+      calls.push(...generateQueueHistories());
       return calls.join('\n');
     };
 
-    const generateQueueSize = () => {
-      const header: [any, any][] = [['Time', 'Number of jobs']];
-      const data: [number, number][] = this.simulationResult.queueSize
-        .map(m => [m.time, m.size]);
-      const sortedData: [number, number][] = data
-        .sort((a, b) => a[0] - b[0])
-        .filter((_, i) => i % 10 === 0);
-
-      return `drawChart('queue-size', 'Queue size', ${JSON.stringify(header.concat(sortedData))}, 'Line');`;
+    const generateQueueHistories = () => {
+      return this.simulationResult.queueHistories.map(history => {
+        const header: [any, any][] = [['Time', 'Number of jobs']];
+        const data: [number, number][] = history.metrics.map(p => ([p.time, p.size]));
+        const sortedData: [number, number][] = data
+          .sort((a, b) => a[0] - b[0])
+          .filter((_, i) => i % 10 === 0);
+        return `drawChart('q-${history.id}', '${history.id}', ${JSON.stringify(header.concat(sortedData))}, 'Line');`;
+      });
     };
-
     return `
 <html>
 <head>
@@ -482,7 +496,7 @@ export class SimulationReport {
 
     function drawCharts() {
       ${generateCalls()}
-      ${generateQueueSize()}
+
     }
   </script>
 </head>
@@ -499,9 +513,9 @@ ${generateShareIdDivs().join('')}
 ${generateJobDefinitionDivs().join('')}
 </div>
 
-<h2>Queue size</h2>
+<h2>Queue histories</h2>
 <div bp="full-width">
-<div id="queue-size" />
+  ${generateQueueDivs().join('')}
 </div>
 
 </body>
