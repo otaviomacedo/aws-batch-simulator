@@ -91,9 +91,9 @@ simulation report tells us exactly how the service times are distributed:
 ![](./docs/img/basic-usage-distribution.png)
 
 As we would expect, the shape of the graph resembles that of an exponential
-distribution. The mean time in this particular simulation was about 17.88
-minutes, somewhat above the average 15 minutes to run a job. The extra time was
-spent by the jobs waiting in the queue.
+distribution. The mean time in this particular simulation was about 20.2
+minutes, compared to the average 15 minutes to run a job. The extra 5 minutes or
+so were spent by the jobs waiting in the queue.
 
 The report also shows how congested the system was over time, reflected by the
 number of jobs in the queue at each point in time:
@@ -120,15 +120,17 @@ const report = simulator.simulate([{
 ```
 
 As the simulation report shows, both departments have to wait about the same
-amount of time (about 19.7 min), on average, for their jobs to finish. This is
-because the default scheduling policy for a job queue is first-in, first-out (
-FIFO).
+amount of time (approximately 21.5 min), on average, for their jobs to finish.
+This is because the default scheduling policy for a job queue is first-in,
+first-out (FIFO), so every job, regardless of their share identifier, has to 
+wait for the same number of jobs in the queue, on average.
 
-![](./docs/img/fifo-distribution.png)
+![](./docs/img/fifo-finance-distribution.png)
+![](./docs/img/fifo-research-distribution.png)
 
 But let's say you have a service leval agreement with the Research department
 that the mean execution time from their perspective (from submission to
-completion) will be less than 17 min. One way to achieve this is by
+completion) will be less than 18 min. One way to achieve this is by
 deprioritizing the Finance jobs, using fair-share scheduling instead of FIFO. By
 experimenting with different sets of values (and running a simulation for each
 one), we conclude that we can achieve the desired result by giving the Research
@@ -150,13 +152,11 @@ const queue: batch.JobQueue = new batch.JobQueue(this, 'myJobQueue', {
 });
 ```
 
-The resulting distributions are about 22 minutes for Finance and 16.5 minutes
+The resulting distributions are about 21 minutes for Finance and 17 minutes
 for Research:
 
-![](./docs/img/fairshare-distribution.png)
-
-Notice that this came at the cost of an increased time for Finance compared to
-the FIFO policy.
+![](./docs/img/fairshare-finance-distribution.png)
+![](./docs/img/fairshare-research-distribution.png)
 
 [//]: # (TODO: compute reservation)
 
@@ -192,14 +192,14 @@ const report = simulator.simulate([{
 }]);
 ```
 
-And then run a simulation, which shows that the mean time jumps to about 28
+And then run a simulation, which shows that the mean time jumps to almost 30
 minutes, in this case:
 
-![](./docs/img/reties-distribution.png)
+![](./docs/img/retries-distribution.png)
 
 > **Note**
-> The simulator doesn't take into account the error reasons. In the 
-> simulation, generated jobs that are considered to fail will be "retried" 
+> The simulator doesn't take into account the error reasons. In the
+> simulation, generated jobs that are considered to fail will be "retried"
 > if their job definition has at least one retry strategy with action `RETRY`.
 
 [//]: # (TODO: "Future work" section)

@@ -17,7 +17,7 @@ import {
   QueueHistory,
 } from './scheduling';
 
-const DEFAULT_NUMBER_OF_JOBS: number = 10000;
+const DEFAULT_NUMBER_OF_JOBS: number = 20000;
 
 export interface StochasticModel {
   readonly interArrivalTimeDistribution: IDistribution;
