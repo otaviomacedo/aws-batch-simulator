@@ -143,28 +143,19 @@ export class JobGenerator {
         ? jobDefinition.retryAttempts ?? 1
         : 0;
 
-      const r = bernoulli(successProbability);
+      const r = geometric(successProbability);
       const trials = Math.min(r, retries + 1);
       return rng.runningTime() * trials;
     }
   }
 }
 
-function bernoulli(p: number): number {
-  // Probably not the most efficient way, but it works and
-  // I don't have to bring in another dependency.
-  const r = Math.random();
-  let result = 1;
-  let b = p;
-  const q = 1 - p;
-  while (b < r) {
-    result++;
-    b += b * q;
-  }
-
-  return result;
+/**
+ * Generates a random number from a geometric distribution
+ */
+function geometric(successProbability: number): number {
+  return Math.ceil(Math.log(Math.random()) / Math.log(1 - successProbability));
 }
-
 function validateConfigs(configs: StochasticModel[]) {
   // TODO test this
   if (configs.some(c => c.weightFactorProbabilities != null
