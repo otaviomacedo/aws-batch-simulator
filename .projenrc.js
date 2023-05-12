@@ -13,5 +13,6 @@ const project = new typescript.TypeScriptProject({
   peerDeps: ['aws-cdk-lib'],
   releaseToNpm: true,
   repository: 'https://github.com/otaviomacedo/aws-batch-simulator.git',
+  keywords: ['aws', 'batch', 'simulation', 'queueing', 'cdk', 'stochastic', 'markov'],
 });
 project.synth();
