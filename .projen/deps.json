@@ -85,7 +85,6 @@
     },
     {
       "name": "@aws-cdk/aws-batch-alpha",
-      "version": "^2.74.0-alpha.0",
       "type": "runtime"
     },
     {

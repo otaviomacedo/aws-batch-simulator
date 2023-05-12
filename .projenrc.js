@@ -3,7 +3,7 @@ const project = new typescript.TypeScriptProject({
   defaultReleaseBranch: 'main',
   name: 'aws-batch-simulator',
   deps: [
-    '@aws-cdk/aws-batch-alpha@^2.74.0-alpha.0',
+    '@aws-cdk/aws-batch-alpha',
     'constructs',
   ],
   description: 'A client-side tool to simulate the behavior of an AWS Batch application',
