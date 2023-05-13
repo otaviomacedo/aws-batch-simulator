@@ -1,27 +1,28 @@
 # AWS Batch Simulator
 
-Suppose you need to run heavy batch workloads, such as training ML models,
-running image processing algorithms on large files etc. Users of your system can
-submit job requests at any time, and independently of each other. This makes it
-impossible to know exactly when a job will arrive to be processed. You also
-don't know exactly how long each job will take, as it depends on exactly what
-kind of computation each one carries out. But historical data tells you, _on
-average_, how many jobs arrive per hour and how long each job takes to run.
+Suppose you need to run heavy batch workloads, such as training ML models or
+running image processing algorithms on large files. These jobs are created as a
+result of your customers' actions, who operate independently of each other. This
+all makes it impossible to know exactly when a job will arrive to be processed.
+You also don't know exactly how long each job will take, as it depends on
+exactly what kind of computation each one carries out. But historical data tells
+you, _on average_, how many jobs arrive per hour and how long each job takes to
+run.
 
 You are planning to implement this system on [AWS Batch], describing the
 necessary infrastructure with the [CDK]. In order to serve your traffic
 properly (based on your historical data), how many compute environments do you
 need? What compute capacity should they have? Is it better to use Fargate, ECS
 or EKS compute environments? If using EKS, which allocation strategy is better:
-best fit or best fir progressive? What will happen if I need to add another job
-queue?
+`BEST_FIT` or `BEST_FIT_PROGRESSIVE`? What will happen if I need to add another
+job queue?
 
 This library can help you answer all these questions by simulating traffic to
 your candidate infrastructure, before you deploy anything to AWS.
 
 ## Basic usage
 
-Let's say you decide to start with the following set-up: a single job queue,
+Let's say you decide to start out with the following set-up: a single job queue,
 connected to a single Fargate compute environment, which can scale up to 60
 vCPUs:
 
@@ -41,7 +42,7 @@ export class BatchApplicationStack extends cdk.Stack {
 }
 ```
 
-Also, let's say that all jobs run in containers with 4 dedicated vCPUs:
+And you want your jobs to run in containers with 4 dedicated vCPUs:
 
 ```ts
 const jobDefinition = new batch.EcsJobDefinition(stack, 'ML-training', {
@@ -54,20 +55,14 @@ const jobDefinition = new batch.EcsJobDefinition(stack, 'ML-training', {
 ```
 
 In your main CDK application entrypoint, you can simulate how this
-infrastructure will handle traffic like this:
+infrastructure will handle traffic by creating a `BatchSimulator`, and using it
+to run a simulation with the parameters you obtained empirically:
 
 ```ts
 const app = new cdk.App();
 const stack = new BatchApplicationStack(app, 'BatchApplication');
 
-/* 
-Assuming the behaviour of this system can be approximated by a Markov process:
-
-- Jobs arrive at the queue independently of each other.
-- The average rate (job arrivals per time period) is constant.
-- The service times (how long job executions take) are exponentially distributed.
-- Two events cannot occur at the same time.
-*/
+// Assuming a Markov process
 const simulator = BatchSimulator.markov(stack);
 
 // const jobDefinition = ... (as defined above)
@@ -79,16 +74,35 @@ const report = simulator.simulate([{
   meanServiceTime: 15, // minutes
   arrivalRate: 0.9, // jobs/min = 54 jobs/h
 }]);
-
-// Use report.toHtml() to get a formatted version of the report with charts etc.
 ```
+
+The jobs arrive independently of each other at the queue at a rate of 54 jobs
+per hour (0.9 jobs/min), but they are not evenly distributed. Instead, the
+probability that $k$ jobs arrive in the next minute is given by
+a [Poisson distribution]:
+
+$$ f(k; \lambda) = \Pr(X{=}k)= \frac{\lambda^k e^{-\lambda}}{k!} $$
+
+where $\lambda = 0.9$, in our example, is the arrival rate. Similarly, the 
+execution times (also known as "service times") are
+[exponentially distributed][Exponential distribution]:
+
+$$
+f(x;\lambda) = \lambda  e^{ - \lambda x}
+$$
+
+where $\lambda$ is the inverse of the mean service time. In this example,
+$\lambda = 1 / 15$.
+
+This type of behavior is very common in queueing systems, and is known as a
+"Markov process" (or "Markov chain"). Hence, `BatchSimulator.markov(stack)`.
 
 Notice that, in this example, we get a job almost every minute, but it takes 15
 minutes for a job to execute (and thus leave the system). If we were to process
-these jobs sequentially, the queue would grow indefinitely over time at this
-rate. Fortunately, the compute environment has 15 times the capacity needed to
-process such jobs (an [M/M/15][mmc] queue, in Kendall's notation). The
-simulation report tells us exactly how the service times are distributed:
+these jobs sequentially, the queue would grow indefinitely over time.Fortunately,
+the compute environment has 15 times the capacity needed to process such jobs 
+(an [M/M/15][mmc] queue, in Kendall's notation). The simulation report tells us
+exactly how the service times are distributed:
 
 ![](./docs/img/basic-usage-distribution.png)
 
@@ -101,6 +115,9 @@ The report also shows how congested the system was over time, reflected by the
 number of jobs in the queue at each point in time:
 
 ![](./docs/img/basic-usage-queue-size.png)
+
+To get the HTML version of the simulation report, that includes these charts,
+use the `report.toHtml()` method.
 
 ## Fair-share scheduling
 
@@ -132,7 +149,7 @@ wait for the same number of jobs in the queue, on average.
 
 But let's say you have a service leval agreement with the Research department
 that the mean execution time from their perspective (from submission to
-completion) will be less than 18 min. One way to achieve this is by
+completion) should be less than 18 min. One way to achieve this is by
 deprioritizing the Finance jobs, using fair-share scheduling instead of FIFO. By
 experimenting with different sets of values (and running a simulation for each
 one), we conclude that we can achieve the desired result by giving the Research
@@ -252,3 +269,7 @@ Some of the AWS Batch features are not being simulated by this library:
 [cron]: https://en.wikipedia.org/wiki/Cron
 
 [Erlang distribution]: https://en.wikipedia.org/wiki/Erlang_distribution
+
+[Poisson distribution]: https://en.wikipedia.org/wiki/Poisson_distribution
+
+[Exponential distribution]: https://en.wikipedia.org/wiki/Exponential_distribution
