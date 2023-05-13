@@ -26,6 +26,10 @@ export interface IDistribution {
 
 export class Distribution {
   static deterministic(value: number): IDistribution {
+    if (value <= 0) {
+      throw new Error(`The deterministic time must be positive. Got ${value}`);
+    }
+
     return new class implements IDistribution {
       nextTime(): number {
         return value;
@@ -34,9 +38,29 @@ export class Distribution {
   }
 
   static exponential(lambda: number): IDistribution {
+    if (lambda <= 0) {
+      throw new Error(`The parameter of the exponential distribution must be positive. Got ${lambda}`);
+    }
+
+    return this.erlang(1, lambda);
+  }
+
+  static erlang(k: number, lambda: number): IDistribution {
+    if (lambda <= 0) {
+      throw new Error(`The rate parameter (λ) of the Erlang distribution must be positive. Got ${lambda}`);
+    }
+
+    if (!(Number.isInteger(k) && k > 0)) {
+      throw new Error(`The shape parameter (k) of the Erlang distribution must be a positive integer. Got ${k}`);
+    }
+
     return new class implements IDistribution {
       nextTime(): number {
-        return -Math.log(Math.random()) / lambda;
+        let sum = 0;
+        for (let i = 0; i < k; i++) {
+          sum += Math.log(Math.random());
+        }
+        return -sum / lambda;
       }
     };
   }

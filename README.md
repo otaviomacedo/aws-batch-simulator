@@ -205,11 +205,11 @@ minutes, in this case:
 ## Using other distributions
 
 Although the Markov process is the most commonly used to model queueing systems,
-your particular use case may be better modeled by some process. For example, in
-many applications, batch jobs are triggered periodically by some scheduler
-like [cron]. The service time may still be exponentially distributed, but the
-inter-arrival time is now deterministic. To model these situations, use the
-lower-level API provided by the _general_ process:
+your particular use case may be better modeled by some other process. For
+example, in many applications, batch jobs are triggered periodically by some
+scheduler like [cron]. The service time may still be exponentially distributed,
+but the inter-arrival time is now deterministic. To model these situations, use
+the lower-level API provided by the `general` process:
 
 ```ts
 const simulator = BatchSimulator.general(stack);
@@ -225,9 +225,10 @@ const report = simulator.simulate([{
 }]);
 ```
 
-If you need to use some more probability distribution that is not available in
-the `Distribution` class, you can bring your own, by implementing the
-`IDistribution` interface.
+In addition to deterministic and exponential distributions, the simulator also
+offers an implementation of the [Erlang distribution]. But If you need to use
+some probability distribution that is not available in the `Distribution` class,
+you can bring your own, by implementing the `IDistribution` interface.
 
 ## Unsupported features (yet)
 
@@ -249,3 +250,5 @@ Some of the AWS Batch features are not being simulated by this library:
 [mmc]: https://www.wikiwand.com/en/M/M/c_queue
 
 [cron]: https://en.wikipedia.org/wiki/Cron
+
+[Erlang distribution]: https://en.wikipedia.org/wiki/Erlang_distribution
