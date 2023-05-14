@@ -165,44 +165,16 @@ function validateConfigs(configs: StochasticModel[]) {
     throw new Error('Weight factor probabilities must sum to 1');
   }
 }
-
-export class Histogram {
-  constructor(public readonly times: number[] = []) {
-  }
-
-  get min() {
-    return Math.min(...this.times);
-  }
-
-  get max() {
-    return Math.max(...this.times);
-  }
-
-  entries(): [number, number][] {
-    const range = this.max - this.min;
-    const numberOfBuckets = 100;
-    const buckets: number[] = new Array(numberOfBuckets).fill(0);
-
-    this.times.forEach(t => {
-      const i = Math.min(Math.floor(numberOfBuckets * (t - this.min) / range), numberOfBuckets - 1);
-      buckets[i]++;
-    });
-
-    const intervalLength = range / numberOfBuckets;
-    return buckets.map((b, index) => [this.min + intervalLength * (index + 1), b / this.times.length]);
-  }
-
-  add(time: number): Histogram {
-    return new Histogram(this.times.concat(time));
-  }
+interface SimulationResult {
+  readonly timesBySI: TimeDistribution[];
+  readonly timesByJD: TimeDistribution[];
+  readonly queueHistories: QueueHistory[];
 }
 
-interface SimulationResult {
-  readonly timesByShareIdentifier: Map<string, Histogram>;
-  readonly timesByJobDefinition: Map<string, Histogram>;
-  readonly meanTimeByShareIdentifier: Map<string, number>;
-  readonly meanTimeByJobDefinition: Map<string, number>;
-  readonly queueHistories: QueueHistory[];
+interface TimeDistribution {
+  name: string;
+  data: number[];
+  mean: number;
 }
 
 export interface IBatchSimulator<M> {
@@ -299,60 +271,37 @@ export class Simulator {
     }));
     const map: Map<Job, number> = new Map(metrics.map(m => [m.job, m.time]));
 
-    const timesByShareIdentifier = this.aggregateByShareIdentifier(map);
-    const timesByJobDefinition = this.aggregateByJobDefinition(map);
-
-    const meanTimeByShareIdentifier: Map<string, number> = new Map();
-    timesByShareIdentifier.forEach((times, shareIdentifier) => {
-      meanTimeByShareIdentifier.set(shareIdentifier, this.computeMean(times));
-    });
-
-    const meanTimeByJobDefinition: Map<string, number> = new Map();
-    timesByJobDefinition.forEach((times, definitionId) => {
-      meanTimeByJobDefinition.set(definitionId, this.computeMean(times));
-    });
-
+    const timesBySI = this.foo(map, j => j.shareIdentifier);
+    const timesByJD = this.foo(map, j => j.definitionId);
 
     return new SimulationReport({
-      timesByShareIdentifier,
-      timesByJobDefinition,
-      meanTimeByShareIdentifier,
-      meanTimeByJobDefinition,
       queueHistories,
+      timesBySI,
+      timesByJD,
     });
   }
 
-  private computeMean(times: Histogram): number {
-    return times.entries().reduce((a, [time, probability]) => a + time * probability, 0);
-  }
-
-  private aggregateByShareIdentifier(times: Map<Job, number>): Map<string, Histogram> {
-    const result: Map<string, Histogram> = new Map();
+  private foo(times: Map<Job, number>, classifier: (job: Job) => string): TimeDistribution[] {
+    const byShareIdentifier: Record<string, number[]> = {};
 
     times.forEach((time, job) => {
-      const shareIdentifier = job.shareIdentifier;
-      if (!result.has(shareIdentifier)) {
-        result.set(shareIdentifier, new Histogram());
+      const shareIdentifier = classifier(job);
+      if (byShareIdentifier[shareIdentifier] == null) {
+        byShareIdentifier[shareIdentifier] = [];
       }
-      result.set(shareIdentifier, result.get(shareIdentifier)!.add(time));
+      byShareIdentifier[shareIdentifier].push(time);
     });
 
-    return result;
+    return Object.entries(byShareIdentifier).map(([id, ts]) => ({
+      name: id,
+      data: ts,
+      mean: mean(ts),
+    }));
   }
+}
 
-  private aggregateByJobDefinition(times: Map<Job, number>): Map<string, Histogram> {
-    const result: Map<string, Histogram> = new Map();
-
-    times.forEach((time, job) => {
-      const path = job.definitionId;
-      if (!result.has(path)) {
-        result.set(path, new Histogram());
-      }
-      result.set(path, result.get(path)!.add(time));
-    });
-
-    return result;
-  }
+function mean(data: number[]): number {
+  return data.reduce((a, b) => a + b, 0) / data.length;
 }
 
 /**
@@ -422,22 +371,8 @@ export class SimulationReport {
   }
 
   toHtml(): string {
-
-    const generateShareIdDivs = () => {
-      const result: string[] = [];
-      this.simulationResult.timesByShareIdentifier.forEach((_, shareIdentifier) => {
-        result.push(`<div id="si-${shareIdentifier}" style="width: 900px; height: 500px;"></div>`);
-      });
-      return result;
-    };
-
-    const generateJobDefinitionDivs = () => {
-      const result: string[] = [];
-      this.simulationResult.timesByJobDefinition.forEach((_, jobDefinition) => {
-        result.push(`<div id="jd-${jobDefinition}" style="width: 900px; height: 500px;"></div>`);
-      });
-      return result;
-    };
+    const generateDivs = (prefix: string, dists: TimeDistribution[]) =>
+      dists.map(dist => `<div id="${prefix}-${dist.name}" style="width: 900px; height: 500px;"></div>`);
 
     const generateQueueDivs = () => {
       const result: string[] = [];
@@ -447,18 +382,27 @@ export class SimulationReport {
       return result;
     };
 
-    const generateCalls = () => {
+    const generateCalls = () => [
+      ...drawDistributions('si', this.simulationResult.timesBySI),
+      ...drawDistributions('jd', this.simulationResult.timesByJD),
+      ...generateQueueHistories(),
+    ].join('\n');
+
+    function drawDistributions(prefix: string, dists: TimeDistribution[]) {
       const calls: string[] = [];
       const header: [any, any][] = [['Time', '']];
-      this.simulationResult.timesByShareIdentifier.forEach((histogram, shareIdentifier) => {
-        calls.push(`drawChart('si-${shareIdentifier}', '${shareIdentifier} (μ = ${this.simulationResult.meanTimeByShareIdentifier.get(shareIdentifier)})', ${JSON.stringify(header.concat(histogram.entries()))});`);
+      dists.forEach(dist => {
+        const name = dist.name;
+        const table = withFakeIds(dist.data);
+        calls.push(`drawChart('${prefix}-${name}', '${name} (μ = ${dist.mean})', ${JSON.stringify(header.concat(table))});`);
       });
-      this.simulationResult.timesByJobDefinition.forEach((histogram, jobDefinition) => {
-        calls.push(`drawChart('jd-${jobDefinition}', '${jobDefinition} (μ = ${this.simulationResult.meanTimeByJobDefinition.get(jobDefinition)})', ${JSON.stringify(header.concat(histogram.entries()))});`);
-      });
-      calls.push(...generateQueueHistories());
-      return calls.join('\n');
-    };
+      return calls;
+
+      function withFakeIds(data: number[]): [string, number][] {
+        let id = 0;
+        return data.map(d => [String(++id), d]);
+      }
+    }
 
     const generateQueueHistories = () => {
       return this.simulationResult.queueHistories.map(history => {
@@ -488,9 +432,9 @@ export class SimulationReport {
           titleTextStyle: {
             italic: false
           }
-        }
+        },
       };
-      var chart = type === 'Line' ? new google.visualization.LineChart(document.getElementById(id)) : new google.visualization.ColumnChart(document.getElementById(id));
+      var chart = type === 'Line' ? new google.visualization.LineChart(document.getElementById(id)) : new google.visualization.Histogram(document.getElementById(id));
       chart.draw(data, options);
     }
 
@@ -505,17 +449,17 @@ export class SimulationReport {
 <h2>Service time distributions by share identifier</h2>
 
 <div bp="grid 3">
-${generateShareIdDivs().join('')}
+${generateDivs('si', this.simulationResult.timesBySI).join('')}
 </div>
 
 <h2>Service time distributions by job definition</h2>
 <div bp="grid 3">
-${generateJobDefinitionDivs().join('')}
+${generateDivs('jd', this.simulationResult.timesByJD).join('')}
 </div>
 
 <h2>Queue histories</h2>
 <div bp="full-width">
-  ${generateQueueDivs().join('')}
+ ${generateQueueDivs().join('')}
 </div>
 
 </body>
