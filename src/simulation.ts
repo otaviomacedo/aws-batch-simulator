@@ -166,8 +166,8 @@ function validateConfigs(configs: StochasticModel[]) {
   }
 }
 interface SimulationResult {
-  readonly timesBySI: TimeDistribution[];
-  readonly timesByJD: TimeDistribution[];
+  readonly timesByShareIdentifier: TimeDistribution[];
+  readonly timesByJobDefinition: TimeDistribution[];
   readonly queueHistories: QueueHistory[];
 }
 
@@ -268,42 +268,44 @@ export class Simulator {
     const queueHistories: QueueHistory[] = backlogs.map(b => ({
       id: b.queue.queueId,
       metrics: b.queue.queueMetrics,
+      mean: mean(b.queue.queueMetrics.map(m => m.size)),
     }));
     const map: Map<Job, number> = new Map(metrics.map(m => [m.job, m.time]));
 
-    const timesBySI = this.foo(map, j => j.shareIdentifier);
-    const timesByJD = this.foo(map, j => j.definitionId);
+    const timesBySI = this.aggregate(map, j => j.shareIdentifier);
+    const timesByJD = this.aggregate(map, j => j.definitionId);
 
     return new SimulationReport({
       queueHistories,
-      timesBySI,
-      timesByJD,
+      timesByShareIdentifier: timesBySI,
+      timesByJobDefinition: timesByJD,
     });
   }
 
-  private foo(times: Map<Job, number>, classifier: (job: Job) => string): TimeDistribution[] {
-    const byShareIdentifier: Record<string, number[]> = {};
+  private aggregate(times: Map<Job, number>, classifier: (job: Job) => string): TimeDistribution[] {
+    const classified: Record<string, number[]> = {};
 
     times.forEach((time, job) => {
       const shareIdentifier = classifier(job);
-      if (byShareIdentifier[shareIdentifier] == null) {
-        byShareIdentifier[shareIdentifier] = [];
+      if (classified[shareIdentifier] == null) {
+        classified[shareIdentifier] = [];
       }
-      byShareIdentifier[shareIdentifier].push(time);
+      classified[shareIdentifier].push(time);
     });
 
-    return Object.entries(byShareIdentifier).map(([id, ts]) => ({
-      name: id,
-      data: ts,
-      mean: mean(ts),
-    }));
+    return Object.entries(classified).map(([id, ts]) => {
+      return {
+        name: id,
+        data: ts,
+        mean: mean(ts),
+      };
+    });
   }
 }
 
 function mean(data: number[]): number {
   return data.reduce((a, b) => a + b, 0) / data.length;
 }
-
 /**
  * Converts CDK constructs into their simulation counterparts.
  */
@@ -383,8 +385,8 @@ export class SimulationReport {
     };
 
     const generateCalls = () => [
-      ...drawDistributions('si', this.simulationResult.timesBySI),
-      ...drawDistributions('jd', this.simulationResult.timesByJD),
+      ...drawDistributions('si', this.simulationResult.timesByShareIdentifier),
+      ...drawDistributions('jd', this.simulationResult.timesByJobDefinition),
       ...generateQueueHistories(),
     ].join('\n');
 
@@ -411,7 +413,7 @@ export class SimulationReport {
         const sortedData: [number, number][] = data
           .sort((a, b) => a[0] - b[0])
           .filter((_, i) => i % 10 === 0);
-        return `drawChart('q-${history.id}', '${history.id}', ${JSON.stringify(header.concat(sortedData))}, 'Line');`;
+        return `drawChart('q-${history.id}', '${history.id} (μ = ${history.mean})', ${JSON.stringify(header.concat(sortedData))}, 'Line');`;
       });
     };
     return `
@@ -449,12 +451,12 @@ export class SimulationReport {
 <h2>Service time distributions by share identifier</h2>
 
 <div bp="grid 3">
-${generateDivs('si', this.simulationResult.timesBySI).join('')}
+${generateDivs('si', this.simulationResult.timesByShareIdentifier).join('')}
 </div>
 
 <h2>Service time distributions by job definition</h2>
 <div bp="grid 3">
-${generateDivs('jd', this.simulationResult.timesByJD).join('')}
+${generateDivs('jd', this.simulationResult.timesByJobDefinition).join('')}
 </div>
 
 <h2>Queue histories</h2>
