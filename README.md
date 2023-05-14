@@ -107,7 +107,7 @@ exactly how the service times are distributed:
 ![](./docs/img/basic-usage-distribution.png)
 
 As we would expect, the shape of the graph resembles that of an exponential
-distribution. The mean time in this particular simulation was about 20.2
+distribution. The mean time in this particular simulation was about 20
 minutes, compared to the average 15 minutes to run a job. The extra 5 minutes or
 so were spent by the jobs waiting in the queue.
 
@@ -139,7 +139,7 @@ const report = simulator.simulate([{
 ```
 
 As the simulation report shows, both departments have to wait about the same
-amount of time (approximately 21.5 min), on average, for their jobs to finish.
+amount of time (approximately 19.5 min), on average, for their jobs to finish.
 This is because the default scheduling policy for a job queue is first-in,
 first-out (FIFO), so every job, regardless of their share identifier, has to
 wait for the same number of jobs in the queue, on average.
@@ -171,7 +171,7 @@ const queue: batch.JobQueue = new batch.JobQueue(this, 'myJobQueue', {
 });
 ```
 
-The resulting distributions are about 21 minutes for Finance and 17 minutes for
+The resulting mean times are about 22 minutes for Finance and 16 minutes for
 Research:
 
 ![](./docs/img/fairshare-finance-distribution.png)
@@ -209,7 +209,7 @@ const report = simulator.simulate([{
 }]);
 ```
 
-And then run a simulation, which shows that the mean time jumps to almost 30
+And then run a simulation, which shows that the mean time jumps to about 29
 minutes, in this case:
 
 ![](./docs/img/retries-distribution.png)

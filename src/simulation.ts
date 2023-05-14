@@ -437,12 +437,17 @@ export class SimulationReport {
         },
       };
       var chart = type === 'Line' ? new google.visualization.LineChart(document.getElementById(id)) : new google.visualization.Histogram(document.getElementById(id));
+      
+      google.visualization.events.addListener(chart, 'ready', function () {
+        const div = document.getElementById(id);
+        div.innerHTML = '<img src="' + chart.getImageURI() + '">';
+      });
+
       chart.draw(data, options);
     }
 
     function drawCharts() {
       ${generateCalls()}
-
     }
   </script>
 </head>
