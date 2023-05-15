@@ -11,14 +11,14 @@ run.
 
 You are planning to implement this system on [AWS Batch], describing the
 necessary infrastructure with the [CDK]. In order to serve your traffic
-properly (based on your historical data), how many compute environments do you
-need? What compute capacity should they have? Is it better to use Fargate, ECS
-or EKS compute environments? If using EKS, which allocation strategy is better:
-`BEST_FIT` or `BEST_FIT_PROGRESSIVE`? What will happen if you need to add
-another job queue?
+properly, how many compute environments do you need? How much compute capacity
+should they have? Is it better to use Fargate, ECS or EKS compute environments?
+If using ECS or EKS, which allocation strategy is better: `BEST_FIT` or
+`BEST_FIT_PROGRESSIVE`? What will happen if you need to add another job queue?
 
 This library can help you answer all these questions by simulating traffic to
-your candidate infrastructure, before you deploy anything to AWS.
+your candidate infrastructure, from your computer, before you deploy anything to
+AWS.
 
 ## Basic usage
 
@@ -54,9 +54,9 @@ const jobDefinition = new batch.EcsJobDefinition(stack, 'ML-training', {
 });
 ```
 
-In your main CDK application entrypoint, you can simulate how this
-infrastructure will handle traffic by creating a `BatchSimulator`, and using it
-to run a simulation with the parameters you obtained empirically:
+In your CDK application entrypoint, you can simulate how this infrastructure
+will handle traffic by creating a `BatchSimulator`, and using it to run a
+simulation with the parameters you obtained empirically:
 
 ```ts
 const app = new cdk.App();
@@ -76,31 +76,32 @@ const report = simulator.simulate([{
 }]);
 ```
 
-The jobs arrive independently of each other at the queue at a rate of 54 jobs
-per hour (0.9 jobs/min), but they are not evenly distributed. Instead, the
-probability that $k$ jobs arrive in the next minute is given by
+In this example, the jobs arrive independently of each other at the queue at a
+rate of 54 jobs per hour (0.9 jobs/min), but they are not evenly distributed.
+Instead, the probability that $k$ jobs arrive in the next minute is given by
 a [Poisson distribution]:
 
 $$ f(k; \lambda) = \Pr(X{=}k)= \frac{\lambda^k e^{-\lambda}}{k!} $$
 
-where $\lambda = 0.9$, in our example, is the arrival rate. Similarly, the
-execution times (also known as "service times") are
-[exponentially distributed][Exponential distribution]:
+where $\lambda = 0.9$, in our example, is the arrival rate. Likewise, the
+execution times (also known as "service times") are not uniformly distributed,
+but rather [exponentially distributed][Exponential distribution]:
 
 $$ f(x;\lambda) = \lambda e^{ - \lambda x} $$
 
-where $\lambda$ is the inverse of the mean service time. In this example,
+where $\lambda$ is the inverse of the mean service time. In this case,
 $\lambda = 1 / 15$.
 
 This type of behavior is very common in queueing systems, and is known as a
 "Markov process" (or "Markov chain"). Hence, `BatchSimulator.markov(stack)`.
 
 Notice that, in this example, we get a job almost every minute, but it takes 15
-minutes for a job to execute (and thus leave the system). If we were to process
-these jobs sequentially, the queue would grow indefinitely over time.
-Fortunately, the compute environment has 15 times the capacity needed to process
-such jobs (an [M/M/15][mmc] queue, in Kendall's notation). The simulation report
-tells us exactly how the service times are distributed:
+minutes for a job to execute (and thus leave the system, freeing up compute
+resources to execute the next job). If we were to process these jobs
+sequentially, the queue would grow indefinitely over time. Fortunately, the
+compute environment has 15 times the capacity needed to process such jobs (
+an [M/M/15][mmc] queue, in Kendall's notation). The simulation report tells us
+exactly how the service times are distributed:
 
 ![](./docs/img/basic-usage-distribution.png)
 
