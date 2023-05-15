@@ -14,8 +14,8 @@ necessary infrastructure with the [CDK]. In order to serve your traffic
 properly (based on your historical data), how many compute environments do you
 need? What compute capacity should they have? Is it better to use Fargate, ECS
 or EKS compute environments? If using EKS, which allocation strategy is better:
-`BEST_FIT` or `BEST_FIT_PROGRESSIVE`? What will happen if I need to add another
-job queue?
+`BEST_FIT` or `BEST_FIT_PROGRESSIVE`? What will happen if you need to add
+another job queue?
 
 This library can help you answer all these questions by simulating traffic to
 your candidate infrastructure, before you deploy anything to AWS.
@@ -83,13 +83,11 @@ a [Poisson distribution]:
 
 $$ f(k; \lambda) = \Pr(X{=}k)= \frac{\lambda^k e^{-\lambda}}{k!} $$
 
-where $\lambda = 0.9$, in our example, is the arrival rate. Similarly, the 
+where $\lambda = 0.9$, in our example, is the arrival rate. Similarly, the
 execution times (also known as "service times") are
 [exponentially distributed][Exponential distribution]:
 
-$$
-f(x;\lambda) = \lambda  e^{ - \lambda x}
-$$
+$$ f(x;\lambda) = \lambda e^{ - \lambda x} $$
 
 where $\lambda$ is the inverse of the mean service time. In this example,
 $\lambda = 1 / 15$.
@@ -99,20 +97,19 @@ This type of behavior is very common in queueing systems, and is known as a
 
 Notice that, in this example, we get a job almost every minute, but it takes 15
 minutes for a job to execute (and thus leave the system). If we were to process
-these jobs sequentially, the queue would grow indefinitely over time.Fortunately,
-the compute environment has 15 times the capacity needed to process such jobs 
-(an [M/M/15][mmc] queue, in Kendall's notation). The simulation report tells us
-exactly how the service times are distributed:
+these jobs sequentially, the queue would grow indefinitely over time.
+Fortunately, the compute environment has 15 times the capacity needed to process
+such jobs (an [M/M/15][mmc] queue, in Kendall's notation). The simulation report
+tells us exactly how the service times are distributed:
 
 ![](./docs/img/basic-usage-distribution.png)
 
-As we would expect, the shape of the graph resembles that of an exponential
-distribution. The mean time in this particular simulation was about 20
-minutes, compared to the average 15 minutes to run a job. The extra 5 minutes or
-so were spent by the jobs waiting in the queue.
+The mean time in this particular simulation was about 20 minutes, compared to
+the average 15 minutes to run a job. The extra 5 minutes or so were spent by the
+jobs waiting in the queue.
 
-The report also shows how congested the system was over time, reflected by the
-number of jobs in the queue at each point in time:
+The report also shows how congested the system was over the course of the
+simulation, indicated by the number of jobs in the queue at each point in time:
 
 ![](./docs/img/basic-usage-queue-size.png)
 
@@ -122,9 +119,8 @@ use the `report.toHtml()` method.
 ## Fair-share scheduling
 
 Now suppose that there are two departments in your company that can submit jobs
-of this type to be processed: Research and Finance, with Finance accounting for
-about 80% of the jobs submitted. You can model this scenario with weight factor
-probabilities:
+of this type: Research and Finance, with Finance accounting for about 80% of the
+jobs submitted. You can model this scenario with weight factor probabilities:
 
 ```ts
 const report = simulator.simulate([{
@@ -147,7 +143,7 @@ wait for the same number of jobs in the queue, on average.
 ![](./docs/img/fifo-finance-distribution.png)
 ![](./docs/img/fifo-research-distribution.png)
 
-But let's say you have a service leval agreement with the Research department
+But let's say you have a service level agreement with the Research department
 that the mean execution time from their perspective (from submission to
 completion) should be less than 18 min. One way to achieve this is by
 deprioritizing the Finance jobs, using fair-share scheduling instead of FIFO. By
