@@ -20,6 +20,17 @@ This library can help you answer all these questions by simulating traffic to
 your candidate infrastructure, from your computer, before you deploy anything to
 AWS.
 
+> **Note**
+> All the logic implemented in this library is based on the behavior described
+> in public AWS documents. However, there are many aspects of AWS Batch that
+> are not public, and therefore cannot be modeled at all, such as the scaling
+> time (how long it takes for a compute environment to go from min vCPUs to
+> max vCPUs) or the transition times (how long it takes from a job to go from
+> one state to the next). As a result, the values in the simulation report should
+> not be taken as an accurate prediction of how the actual system will perform.
+> Rather, you should consider those results relative to one another, to judge how
+> different set-ups respond to the same traffic pattern.
+
 ## Basic usage
 
 Let's say you decide to start out with the following set-up: a single job queue,
@@ -211,10 +222,9 @@ minutes, in this case:
 
 ![](./docs/img/retries-distribution.png)
 
-> **Note**
-> The simulator doesn't take into account the error reasons. In the
-> simulation, generated jobs that are considered to fail will be "retried"
-> if their job definition has at least one retry strategy with action `RETRY`.
+At the moment, the simulator doesn't take into account the error reasons. In the
+simulation, generated jobs that are considered to fail will be "retried"
+if their job definition has at least one retry strategy with action `RETRY`.
 
 ## Using other distributions
 
