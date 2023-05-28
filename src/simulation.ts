@@ -17,7 +17,7 @@ import {
   QueueHistory,
 } from './scheduling';
 
-const DEFAULT_NUMBER_OF_JOBS: number = 20000;
+const DEFAULT_NUMBER_OF_JOBS: number = 100000;
 
 export interface StochasticModel {
   readonly interArrivalTimeDistribution: IDistribution;
@@ -165,6 +165,7 @@ function validateConfigs(configs: StochasticModel[]) {
     throw new Error('Weight factor probabilities must sum to 1');
   }
 }
+
 interface SimulationResult {
   readonly timesByShareIdentifier: TimeDistribution[];
   readonly timesByJobDefinition: TimeDistribution[];
@@ -175,6 +176,7 @@ interface TimeDistribution {
   name: string;
   data: number[];
   mean: number;
+  stdDev: number;
 }
 
 export interface IBatchSimulator<M> {
@@ -265,11 +267,19 @@ export class Simulator {
     eventLoop.start();
 
     const metrics: ExecutionMetrics[] = backlogs.flatMap(b => b.queue.executionMetrics);
-    const queueHistories: QueueHistory[] = backlogs.map(b => ({
-      id: b.queue.queueId,
-      metrics: b.queue.queueMetrics,
-      mean: mean(b.queue.queueMetrics.map(m => m.size)),
-    }));
+    const queueHistories: QueueHistory[] = backlogs.map(b => {
+      const {
+        mean,
+        stdDev,
+      } = stats(b.queue.queueMetrics.map(m => m.size));
+
+      return ({
+        id: b.queue.queueId,
+        metrics: b.queue.queueMetrics,
+        mean: mean,
+        stdDev: stdDev,
+      });
+    });
     const map: Map<Job, number> = new Map(metrics.map(m => [m.job, m.time]));
 
     const timesBySI = this.aggregate(map, j => j.shareIdentifier);
@@ -294,18 +304,35 @@ export class Simulator {
     });
 
     return Object.entries(classified).map(([id, ts]) => {
+      const {
+        mean,
+        stdDev,
+      } = stats(ts);
+
       return {
         name: id,
         data: ts,
-        mean: mean(ts),
+        mean,
+        stdDev,
       };
     });
   }
 }
 
-function mean(data: number[]): number {
-  return data.reduce((a, b) => a + b, 0) / data.length;
+function stats(data: number[]): { mean: number; stdDev: number } {
+  const mean = computeMean(data);
+  const stdDev = Math.sqrt(computeMean(data.map(x => (x - mean) ** 2)));
+
+  return {
+    mean,
+    stdDev,
+  };
+
+  function computeMean(xs: number[]): number {
+    return xs.reduce((a, b) => a + b, 0) / data.length;
+  }
 }
+
 /**
  * Converts CDK constructs into their simulation counterparts.
  */
@@ -384,6 +411,10 @@ export class SimulationReport {
       return result;
     };
 
+    function round(n: number): number {
+      return Math.floor(n * 100) / 100;
+    }
+
     const generateCalls = () => [
       ...drawDistributions('si', this.simulationResult.timesByShareIdentifier),
       ...drawDistributions('jd', this.simulationResult.timesByJobDefinition),
@@ -396,7 +427,7 @@ export class SimulationReport {
       dists.forEach(dist => {
         const name = dist.name;
         const table = withFakeIds(dist.data);
-        calls.push(`drawChart('${prefix}-${name}', '${name} (μ = ${dist.mean})', ${JSON.stringify(header.concat(table))});`);
+        calls.push(`drawChart('${prefix}-${name}', '${name} (μ = ${round(dist.mean)}, σ = ${round(dist.stdDev)})', ${JSON.stringify(header.concat(table))});`);
       });
       return calls;
 
@@ -413,7 +444,7 @@ export class SimulationReport {
         const sortedData: [number, number][] = data
           .sort((a, b) => a[0] - b[0])
           .filter((_, i) => i % 10 === 0);
-        return `drawChart('q-${history.id}', '${history.id} (μ = ${history.mean})', ${JSON.stringify(header.concat(sortedData))}, 'Line');`;
+        return `drawChart('q-${history.id}', '${history.id} (μ = ${round(history.mean)}, σ = ${round(history.stdDev)})', ${JSON.stringify(header.concat(sortedData))}, 'Line');`;
       });
     };
     return `

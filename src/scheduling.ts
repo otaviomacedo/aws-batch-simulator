@@ -888,6 +888,7 @@ export interface QueueHistory {
   id: string;
   metrics: QueueMetrics[];
   mean: number;
+  stdDev: number;
 }
 
 export interface JobQueueProps {
